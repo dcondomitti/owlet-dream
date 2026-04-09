@@ -112,6 +112,7 @@ SENSOR_DESCRIPTIONS: tuple[OwletSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.TEMPERATURE,
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
         value_fn=_skin_temp_c,
     ),
     OwletSensorEntityDescription(
