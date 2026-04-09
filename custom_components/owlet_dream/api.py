@@ -174,27 +174,22 @@ class OwletApi:
         mini_data = await resp.json()
         mini_token = mini_data["mini_token"]
 
-        # Step 2: Auth with Ayla using mini token
-        ayla_auth_url = f"{self._ayla_config['user_field_url']}/users/sign_in.json"
+        # Step 2: Auth with Ayla using mini token via token_sign_in
+        ayla_auth_url = (
+            f"{self._ayla_config['user_field_url']}/api/v1/token_sign_in"
+        )
         payload = {
-            "user": {
-                "token": mini_token,
-                "app_id": self._ayla_config["app_id"],
-                "app_secret": self._ayla_config["app_secret"],
-                "provider": "owl_id",
-            }
+            "token": mini_token,
+            "app_id": self._ayla_config["app_id"],
+            "app_secret": self._ayla_config["app_secret"],
+            "provider": "owl_id",
         }
         resp = await self._session.post(ayla_auth_url, json=payload)
-        if resp.status != 200:
-            body = await resp.text()
-            _LOGGER.error("Ayla sign-in failed: %s %s", resp.status, body)
-            raise OwletAuthError(f"Ayla sign-in failed ({resp.status})")
-
         data = await resp.json()
-        _LOGGER.debug("Ayla sign-in response keys: %s", list(data.keys()))
-        # Ayla wraps the response under a "user" key
-        if "user" in data:
-            data = data["user"]
+        if resp.status != 200 or "error" in data:
+            _LOGGER.error("Ayla sign-in failed: %s %s", resp.status, data)
+            raise OwletAuthError(f"Ayla sign-in failed: {data.get('error', resp.status)}")
+
         self._ayla_access_token = data["access_token"]
         self._ayla_refresh_token = data["refresh_token"]
         expires_in = int(data.get("expires_in", 86400))
@@ -224,6 +219,7 @@ class OwletApi:
             return
 
         data = await resp.json()
+        # refresh_token endpoint may wrap in "user" or return flat
         if "user" in data:
             data = data["user"]
         self._ayla_access_token = data["access_token"]
