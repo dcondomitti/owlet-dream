@@ -191,6 +191,10 @@ class OwletApi:
             raise OwletAuthError(f"Ayla sign-in failed ({resp.status})")
 
         data = await resp.json()
+        _LOGGER.debug("Ayla sign-in response keys: %s", list(data.keys()))
+        # Ayla wraps the response under a "user" key
+        if "user" in data:
+            data = data["user"]
         self._ayla_access_token = data["access_token"]
         self._ayla_refresh_token = data["refresh_token"]
         expires_in = int(data.get("expires_in", 86400))
@@ -220,6 +224,8 @@ class OwletApi:
             return
 
         data = await resp.json()
+        if "user" in data:
+            data = data["user"]
         self._ayla_access_token = data["access_token"]
         self._ayla_refresh_token = data["refresh_token"]
         expires_in = int(data.get("expires_in", 86400))
