@@ -32,7 +32,10 @@
       "battery_time_remaining": { "name": "Battery Time Remaining" },
       "sleep_state": { "name": "Sleep State" },
       "signal_strength": { "name": "Signal Strength" },
-      "perfusion_index": { "name": "Perfusion Index" }
+      "perfusion_index": { "name": "Perfusion Index" },
+      "time_since_last_wiggle": { "name": "Time Since Last Wiggle" },
+      "time_since_last_deep_sleep": { "name": "Time Since Last Deep Sleep" },
+      "last_deep_sleep_duration": { "name": "Last Deep Sleep Duration" }
     },
     "binary_sensor": {
       "sock_connected": { "name": "Sock Connected" },

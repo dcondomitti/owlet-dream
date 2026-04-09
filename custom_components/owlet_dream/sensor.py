@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -22,6 +23,7 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+import homeassistant.util.dt as dt_util
 
 from .const import (
     DOMAIN,
@@ -185,10 +187,12 @@ async def async_setup_entry(
         "coordinators"
     ]
 
-    entities: list[OwletSensorEntity] = []
+    entities: list[OwletSensorEntity | OwletDerivedSensorEntity] = []
     for coordinator in coordinators:
         for description in SENSOR_DESCRIPTIONS:
             entities.append(OwletSensorEntity(coordinator, description))
+        for description in DERIVED_SENSOR_DESCRIPTIONS:
+            entities.append(OwletDerivedSensorEntity(coordinator, description))
 
     async_add_entities(entities)
 
@@ -230,6 +234,95 @@ class OwletSensorEntity(CoordinatorEntity[OwletDeviceCoordinator], SensorEntity)
         if raw is None:
             return None
         return self.entity_description.value_fn(raw)
+
+
+# ── Derived sensors (computed from coordinator state tracking) ────────
+
+
+@dataclass(frozen=True, kw_only=True)
+class OwletDerivedSensorEntityDescription(SensorEntityDescription):
+    """Describe a derived Owlet sensor entity."""
+
+    value_fn: Callable[[OwletDeviceCoordinator], Any]
+    available_fn: Callable[[OwletDeviceCoordinator], bool] = lambda c: c.data is not None
+
+
+def _minutes_since(dt: datetime | None) -> float | None:
+    """Return minutes elapsed since a timestamp, or None."""
+    if dt is None:
+        return None
+    delta = dt_util.now() - dt
+    return round(delta.total_seconds() / 60.0, 1)
+
+
+def _td_minutes(td: timedelta | None) -> float | None:
+    """Return a timedelta as minutes, or None."""
+    if td is None:
+        return None
+    return round(td.total_seconds() / 60.0, 1)
+
+
+DERIVED_SENSOR_DESCRIPTIONS: tuple[OwletDerivedSensorEntityDescription, ...] = (
+    OwletDerivedSensorEntityDescription(
+        key="time_since_last_wiggle",
+        translation_key="time_since_last_wiggle",
+        icon="mdi:baby-face-outline",
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        suggested_display_precision=0,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda c: _minutes_since(c.last_movement_time),
+        available_fn=lambda c: c.last_movement_time is not None,
+    ),
+    OwletDerivedSensorEntityDescription(
+        key="time_since_last_deep_sleep",
+        translation_key="time_since_last_deep_sleep",
+        icon="mdi:sleep",
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        suggested_display_precision=0,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda c: _minutes_since(c.last_deep_sleep_end),
+        available_fn=lambda c: c.last_deep_sleep_end is not None,
+    ),
+    OwletDerivedSensorEntityDescription(
+        key="last_deep_sleep_duration",
+        translation_key="last_deep_sleep_duration",
+        icon="mdi:timer-sand",
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        suggested_display_precision=0,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda c: _td_minutes(c.last_deep_sleep_duration),
+        available_fn=lambda c: c.last_deep_sleep_duration is not None,
+    ),
+)
+
+
+class OwletDerivedSensorEntity(
+    CoordinatorEntity[OwletDeviceCoordinator], SensorEntity
+):
+    """Sensor entity derived from coordinator state tracking."""
+
+    entity_description: OwletDerivedSensorEntityDescription
+    _attr_has_entity_name = True
+
+    def __init__(
+        self,
+        coordinator: OwletDeviceCoordinator,
+        description: OwletDerivedSensorEntityDescription,
+    ) -> None:
+        super().__init__(coordinator)
+        self.entity_description = description
+        self._attr_unique_id = f"{coordinator.dsn}_{description.key}"
+        self._attr_device_info = _device_info(coordinator)
+
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        return self.entity_description.available_fn(self.coordinator)
+
+    @property
+    def native_value(self) -> Any:
+        return self.entity_description.value_fn(self.coordinator)
 
 
 def _device_info(coordinator: OwletDeviceCoordinator) -> dict[str, Any]:

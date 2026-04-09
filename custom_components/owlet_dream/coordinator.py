@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 import logging
 from typing import Any
 
@@ -13,6 +13,9 @@ import homeassistant.util.dt as dt_util
 from .api import OwletApi, OwletApiError, OwletAuthError
 from .const import (
     DOMAIN,
+    SLEEP_STATE_DEEP,
+    VITALS_KEY_MOVEMENT,
+    VITALS_KEY_SLEEP_STATE,
     VITALS_KEY_SOCK_CONNECTION,
 )
 
@@ -37,6 +40,14 @@ class OwletDeviceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.api = api
         self.dsn: str = device_info["dsn"]
         self.device_info = device_info
+
+        # State tracking for derived sensors
+        self.last_movement_time: datetime | None = None
+        self.last_deep_sleep_end: datetime | None = None
+        self.last_deep_sleep_duration: timedelta | None = None
+        self._deep_sleep_start: datetime | None = None
+        self._prev_sleep_state: int | None = None
+        self._prev_movement: int | None = None
 
         super().__init__(
             hass,
@@ -64,6 +75,40 @@ class OwletDeviceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return INTERVAL_ACTIVE
         return INTERVAL_IDLE
 
+    def _track_state(self, vitals: dict[str, Any]) -> None:
+        """Update derived state from new vitals."""
+        now = dt_util.now()
+
+        # Track movement
+        mv = vitals.get(VITALS_KEY_MOVEMENT)
+        if mv is not None and int(mv) > 0:
+            self.last_movement_time = now
+        self._prev_movement = mv
+
+        # Track deep sleep transitions
+        ss = vitals.get(VITALS_KEY_SLEEP_STATE)
+        if ss is not None:
+            ss = int(ss)
+            prev = self._prev_sleep_state
+
+            if ss == SLEEP_STATE_DEEP and prev != SLEEP_STATE_DEEP:
+                # Entered deep sleep
+                self._deep_sleep_start = now
+            elif ss != SLEEP_STATE_DEEP and prev == SLEEP_STATE_DEEP:
+                # Exited deep sleep
+                if self._deep_sleep_start is not None:
+                    self.last_deep_sleep_duration = now - self._deep_sleep_start
+                self.last_deep_sleep_end = now
+                self._deep_sleep_start = None
+
+            # If currently in deep sleep, keep updating the running duration
+            # so the "last duration" reflects the current ongoing period too
+            if ss == SLEEP_STATE_DEEP and self._deep_sleep_start is not None:
+                self.last_deep_sleep_duration = now - self._deep_sleep_start
+                self.last_deep_sleep_end = now
+
+            self._prev_sleep_state = ss
+
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch real-time vitals from Ayla."""
         try:
@@ -80,6 +125,9 @@ class OwletDeviceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         if vitals is None:
             raise UpdateFailed(f"No vitals data available for {self.dsn}")
+
+        # Update derived state tracking
+        self._track_state(vitals)
 
         # Adjust poll rate based on sock state and time of day
         self.update_interval = self._compute_interval()
