@@ -10,6 +10,8 @@ from typing import Any
 import aiohttp
 
 from .const import (
+    ANDROID_CERT_SHA1,
+    ANDROID_PACKAGE,
     AYLA_CONFIG,
     FIREBASE_AUTH_URL,
     FIREBASE_CONFIG,
@@ -82,6 +84,14 @@ class OwletApi:
 
     # ── Firebase Auth ─────────────────────────────────────────────────
 
+    def _firebase_headers(self) -> dict[str, str]:
+        """Headers to satisfy Android-restricted Firebase API keys."""
+        return {
+            "X-Android-Package": ANDROID_PACKAGE,
+            "X-Android-Cert": ANDROID_CERT_SHA1,
+            "Content-Type": "application/json",
+        }
+
     async def _firebase_sign_in(self) -> None:
         """Sign in with email/password via Firebase REST API."""
         url = f"{FIREBASE_AUTH_URL}:signInWithPassword"
@@ -92,7 +102,9 @@ class OwletApi:
             "returnSecureToken": True,
         }
 
-        resp = await self._session.post(url, params=params, json=payload)
+        resp = await self._session.post(
+            url, params=params, json=payload, headers=self._firebase_headers()
+        )
         if resp.status != 200:
             body = await resp.text()
             _LOGGER.error("Firebase sign-in failed: %s %s", resp.status, body)
@@ -117,7 +129,9 @@ class OwletApi:
             "refresh_token": self._firebase_refresh_token,
         }
 
-        resp = await self._session.post(url, params=params, json=payload)
+        resp = await self._session.post(
+            url, params=params, json=payload, headers=self._firebase_headers()
+        )
         if resp.status != 200:
             _LOGGER.warning("Firebase token refresh failed, re-authenticating")
             await self._firebase_sign_in()
@@ -230,7 +244,10 @@ class OwletApi:
         url = f"{FIREBASE_AUTH_URL}:lookup"
         params = {"key": self._firebase_config["api_key"]}
         resp = await self._session.post(
-            url, params=params, json={"idToken": firebase_token}
+            url,
+            params=params,
+            json={"idToken": firebase_token},
+            headers=self._firebase_headers(),
         )
         if resp.status != 200:
             raise OwletApiError("Failed to look up Firebase user")

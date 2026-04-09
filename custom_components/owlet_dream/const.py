@@ -49,6 +49,10 @@ AYLA_CONFIG = {
 FIREBASE_AUTH_URL = "https://identitytoolkit.googleapis.com/v1/accounts"
 FIREBASE_TOKEN_URL = "https://securetoken.googleapis.com/v1/token"
 
+# Android app identity -- required for Android-restricted Firebase API keys
+ANDROID_PACKAGE = "com.owletcare.sleep"
+ANDROID_CERT_SHA1 = "2A3BC26DB0B8B0792DBE28E6FFDC2598F9B12B74"
+
 # Polling interval in seconds
 DEFAULT_SCAN_INTERVAL = 30
 
