@@ -49,11 +49,25 @@ class OwletSensorEntityDescription(SensorEntityDescription):
     value_fn: Callable[[Any], Any] = lambda x: x
 
 
+def _zero_as_none(raw: Any) -> int | None:
+    """Treat 0 as unavailable (sock not reading)."""
+    if raw is None or int(raw) == 0:
+        return None
+    return int(raw)
+
+
+def _oxygen_10min(raw: Any) -> int | None:
+    """Filter O2 10-min average: 0 and 255 are sentinel values."""
+    if raw is None or int(raw) in (0, 255):
+        return None
+    return int(raw)
+
+
 def _skin_temp_c(raw: Any) -> float | None:
     """Convert raw skin temperature (tenths of degree C) to degrees C."""
-    if raw is None or raw == 0:
+    if raw is None or int(raw) == 0:
         return None
-    return round(raw / 10.0, 1)
+    return round(int(raw) / 10.0, 1)
 
 
 def _sleep_state_name(raw: Any) -> str | None:
@@ -71,6 +85,7 @@ SENSOR_DESCRIPTIONS: tuple[OwletSensorEntityDescription, ...] = (
         native_unit_of_measurement="bpm",
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:heart-pulse",
+        value_fn=_zero_as_none,
     ),
     OwletSensorEntityDescription(
         key="oxygen_level",
@@ -79,6 +94,7 @@ SENSOR_DESCRIPTIONS: tuple[OwletSensorEntityDescription, ...] = (
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:percent-circle",
+        value_fn=_zero_as_none,
     ),
     OwletSensorEntityDescription(
         key="oxygen_10min_avg",
@@ -87,6 +103,7 @@ SENSOR_DESCRIPTIONS: tuple[OwletSensorEntityDescription, ...] = (
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:percent-circle-outline",
+        value_fn=_oxygen_10min,
     ),
     OwletSensorEntityDescription(
         key="skin_temperature",
