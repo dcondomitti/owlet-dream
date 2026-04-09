@@ -30,6 +30,7 @@ from .const import (
     SLEEP_STATE_NAMES,
     VITALS_KEY_BATTERY,
     VITALS_KEY_BATTERY_TIME,
+    VITALS_KEY_SOCK_CONNECTION,
     VITALS_KEY_HEART_RATE,
     VITALS_KEY_MOVEMENT,
     VITALS_KEY_MOVEMENT_BUCKET,
@@ -49,6 +50,7 @@ class OwletSensorEntityDescription(SensorEntityDescription):
 
     vitals_key: str
     value_fn: Callable[[Any], Any] = lambda x: x
+    requires_sock_on: bool = False
 
 
 def _zero_as_none(raw: Any) -> int | None:
@@ -88,6 +90,7 @@ SENSOR_DESCRIPTIONS: tuple[OwletSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:heart-pulse",
         value_fn=_zero_as_none,
+        requires_sock_on=True,
     ),
     OwletSensorEntityDescription(
         key="oxygen_level",
@@ -97,6 +100,7 @@ SENSOR_DESCRIPTIONS: tuple[OwletSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:percent-circle",
         value_fn=_zero_as_none,
+        requires_sock_on=True,
     ),
     OwletSensorEntityDescription(
         key="oxygen_10min_avg",
@@ -106,6 +110,7 @@ SENSOR_DESCRIPTIONS: tuple[OwletSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:percent-circle-outline",
         value_fn=_oxygen_10min,
+        requires_sock_on=True,
     ),
     OwletSensorEntityDescription(
         key="skin_temperature",
@@ -116,6 +121,7 @@ SENSOR_DESCRIPTIONS: tuple[OwletSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=1,
         value_fn=_skin_temp_c,
+        requires_sock_on=True,
     ),
     OwletSensorEntityDescription(
         key="movement",
@@ -123,6 +129,7 @@ SENSOR_DESCRIPTIONS: tuple[OwletSensorEntityDescription, ...] = (
         vitals_key=VITALS_KEY_MOVEMENT,
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:run",
+        requires_sock_on=True,
     ),
     OwletSensorEntityDescription(
         key="movement_bucket",
@@ -156,6 +163,7 @@ SENSOR_DESCRIPTIONS: tuple[OwletSensorEntityDescription, ...] = (
         vitals_key=VITALS_KEY_SLEEP_STATE,
         icon="mdi:sleep",
         value_fn=_sleep_state_name,
+        requires_sock_on=True,
     ),
     OwletSensorEntityDescription(
         key="signal_strength",
@@ -173,6 +181,7 @@ SENSOR_DESCRIPTIONS: tuple[OwletSensorEntityDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:water-percent",
         entity_registry_enabled_default=False,
+        requires_sock_on=True,
     ),
 )
 
@@ -224,11 +233,21 @@ class OwletSensorEntity(CoordinatorEntity[OwletDeviceCoordinator], SensorEntity)
             and self.entity_description.vitals_key in data
         )
 
-    @property
-    def native_value(self) -> Any:
-        """Return the sensor value."""
+    def _sock_is_on(self) -> bool:
+        """Return True if sock is connected."""
         data = self.coordinator.data
         if data is None:
+            return False
+        sc = data.get(VITALS_KEY_SOCK_CONNECTION)
+        return sc is not None and int(sc) != 0
+
+    @property
+    def native_value(self) -> Any:
+        """Return the sensor value, or None if sock is off for vitals sensors."""
+        data = self.coordinator.data
+        if data is None:
+            return None
+        if self.entity_description.requires_sock_on and not self._sock_is_on():
             return None
         raw = data.get(self.entity_description.vitals_key)
         if raw is None:
