@@ -1,0 +1,6 @@
+out/
+*.apkm
+*.apk
+.claude/
+__pycache__/
+*.pyc

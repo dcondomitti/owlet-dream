@@ -1,0 +1,47 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Owlet Dream Login",
+        "description": "Enter your Owlet Dream account credentials.",
+        "data": {
+          "email": "Email",
+          "password": "Password",
+          "region": "Region"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid email or password.",
+      "cannot_connect": "Unable to connect to Owlet services.",
+      "unknown": "An unexpected error occurred."
+    },
+    "abort": {
+      "already_configured": "This Owlet account is already configured."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "heart_rate": { "name": "Heart Rate" },
+      "oxygen_level": { "name": "Oxygen Level" },
+      "oxygen_10min_avg": { "name": "Oxygen 10-Min Average" },
+      "skin_temperature": { "name": "Skin Temperature" },
+      "movement": { "name": "Movement" },
+      "movement_bucket": { "name": "Movement Bucket" },
+      "battery_level": { "name": "Battery" },
+      "battery_time_remaining": { "name": "Battery Time Remaining" },
+      "sleep_state": { "name": "Sleep State" },
+      "signal_strength": { "name": "Signal Strength" },
+      "perfusion_index": { "name": "Perfusion Index" }
+    },
+    "binary_sensor": {
+      "sock_connected": { "name": "Sock Connected" },
+      "base_station_on": { "name": "Base Station" },
+      "charging": { "name": "Charging" },
+      "active_alert": { "name": "Active Alert" },
+      "alerts_paused": { "name": "Alerts Paused" },
+      "sock_reading": { "name": "Sock Reading" },
+      "wellness_alert": { "name": "Wellness Alert" }
+    }
+  }
+}

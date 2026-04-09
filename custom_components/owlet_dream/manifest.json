@@ -1,0 +1,12 @@
+{
+  "domain": "owlet_dream",
+  "name": "Owlet Dream",
+  "codeowners": [],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/dcondomitti/owlet-dream",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/dcondomitti/owlet-dream/issues",
+  "requirements": ["aiohttp>=3.8.0"],
+  "version": "1.0.0"
+}
