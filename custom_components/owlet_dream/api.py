@@ -323,6 +323,8 @@ class OwletApi:
         headers = await self._ayla_headers()
         url = f"{self._ayla_config['ads_field_url']}/apiv1/devices.json"
         resp = await self._session.get(url, headers=headers)
+        if resp.status == 401:
+            raise OwletAuthError("Ayla auth expired fetching devices")
         if resp.status != 200:
             body = await resp.text()
             _LOGGER.error("Ayla get devices failed: %s %s", resp.status, body)
@@ -336,6 +338,8 @@ class OwletApi:
         headers = await self._ayla_headers()
         url = f"{self._ayla_config['ads_field_url']}/apiv1/dsns/{dsn}/properties.json"
         resp = await self._session.get(url, headers=headers)
+        if resp.status == 401:
+            raise OwletAuthError(f"Ayla auth expired fetching properties for {dsn}")
         if resp.status != 200:
             body = await resp.text()
             _LOGGER.error(
@@ -356,8 +360,55 @@ class OwletApi:
                 props[name] = value
         return props
 
+    async def get_single_property(self, dsn: str, prop_name: str) -> Any:
+        """Get a single property value for an Ayla device."""
+        headers = await self._ayla_headers()
+        url = (
+            f"{self._ayla_config['ads_field_url']}"
+            f"/apiv1/dsns/{dsn}/properties/{prop_name}/datapoints.json"
+        )
+        resp = await self._session.get(url, headers=headers)
+        if resp.status == 401:
+            raise OwletAuthError(f"Ayla auth expired fetching {prop_name} for {dsn}")
+        if resp.status != 200:
+            return None
+
+        data = await resp.json()
+        # Returns a list of datapoints; take the most recent
+        if isinstance(data, list) and data:
+            return data[0].get("datapoint", {}).get("value")
+        return None
+
     async def get_real_time_vitals(self, dsn: str) -> dict[str, Any] | None:
-        """Get real-time vitals for a device by reading the REAL_TIME_VITALS property."""
+        """Get real-time vitals for a device.
+
+        Tries the single REAL_TIME_VITALS property first (one API call).
+        Falls back to fetching all properties if that fails.
+        """
+        # Fast path: fetch just REAL_TIME_VITALS
+        headers = await self._ayla_headers()
+        url = (
+            f"{self._ayla_config['ads_field_url']}"
+            f"/apiv1/dsns/{dsn}/properties/REAL_TIME_VITALS/datapoints.json"
+        )
+        resp = await self._session.get(url, headers=headers)
+        if resp.status == 401:
+            raise OwletAuthError(f"Ayla auth expired for {dsn}")
+
+        if resp.status == 200:
+            data = await resp.json()
+            if isinstance(data, list) and data:
+                raw = data[0].get("datapoint", {}).get("value")
+                if raw and isinstance(raw, str):
+                    try:
+                        return json.loads(raw)
+                    except json.JSONDecodeError:
+                        _LOGGER.warning(
+                            "Failed to parse REAL_TIME_VITALS for %s", dsn
+                        )
+
+        # Slow fallback: fetch all properties
+        _LOGGER.debug("Falling back to full property fetch for %s", dsn)
         props = await self.get_device_properties(dsn)
 
         rtv_raw = props.get("REAL_TIME_VITALS")
@@ -365,10 +416,8 @@ class OwletApi:
             try:
                 return json.loads(rtv_raw)
             except json.JSONDecodeError:
-                _LOGGER.warning("Failed to parse REAL_TIME_VITALS for %s", dsn)
-                return None
+                pass
 
-        # Fall back to individual properties if REAL_TIME_VITALS is not available
         vitals: dict[str, Any] = {}
         prop_map = {
             "HEART_RATE": "hr",

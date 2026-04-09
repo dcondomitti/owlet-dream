@@ -53,8 +53,8 @@ FIREBASE_TOKEN_URL = "https://securetoken.googleapis.com/v1/token"
 ANDROID_PACKAGE = "com.owletcare.sleep"
 ANDROID_CERT_SHA1 = "2A3BC26DB0B8B0792DBE28E6FFDC2598F9B12B74"
 
-# Polling interval in seconds
-DEFAULT_SCAN_INTERVAL = 30
+# Polling interval in seconds (app uses 20s)
+DEFAULT_SCAN_INTERVAL = 20
 
 # Real-time vitals JSON keys from Ayla REAL_TIME_VITALS property
 VITALS_KEY_OXYGEN = "ox"
