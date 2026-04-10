@@ -67,11 +67,11 @@ def _oxygen_10min(raw: Any) -> int | None:
     return int(raw)
 
 
-def _skin_temp_c(raw: Any) -> float | None:
-    """Convert raw skin temperature (tenths of degree C) to degrees C."""
+def _skin_temp_c(raw: Any) -> int | None:
+    """Return skin temperature in degrees C (raw value is already in C)."""
     if raw is None or int(raw) == 0:
         return None
-    return round(int(raw) / 10.0, 1)
+    return int(raw)
 
 
 def _sleep_state_name(raw: Any) -> str | None:
