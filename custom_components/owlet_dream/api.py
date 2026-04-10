@@ -362,12 +362,37 @@ class OwletApi:
                 props[name] = value
         return props
 
+    async def send_heartbeat(self, dsn: str) -> None:
+        """Write APP_ACTIVE=1 to keep the base station streaming vitals.
+
+        The base station only pushes REAL_TIME_VITALS while it receives
+        periodic APP_ACTIVE=1 datapoints. Without this heartbeat, the
+        vitals property goes stale within ~60 seconds.
+        """
+        headers = await self._ayla_headers()
+        url = (
+            f"{self._ayla_config['ads_field_url']}"
+            f"/apiv1/dsns/{dsn}/properties/APP_ACTIVE/datapoints.json"
+        )
+        resp = await self._session.post(
+            url, headers=headers, json={"datapoint": {"value": 1}}
+        )
+        if resp.status == 401:
+            raise OwletAuthError(f"Ayla auth expired sending heartbeat for {dsn}")
+        if resp.status not in (200, 201):
+            _LOGGER.warning(
+                "APP_ACTIVE heartbeat failed for %s: %s", dsn, resp.status
+            )
+
     async def get_real_time_vitals(self, dsn: str) -> dict[str, Any] | None:
         """Get real-time vitals for a device.
 
-        Fetches the single REAL_TIME_VITALS property value (lightweight).
+        Sends APP_ACTIVE heartbeat then fetches REAL_TIME_VITALS property.
         Falls back to fetching all properties if that fails.
         """
+        # Send heartbeat to keep base station streaming
+        await self.send_heartbeat(dsn)
+
         headers = await self._ayla_headers()
         url = (
             f"{self._ayla_config['ads_field_url']}"
