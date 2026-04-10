@@ -153,7 +153,8 @@ class OwletApi:
         else:
             await self._firebase_sign_in()
 
-        assert self._firebase_id_token
+        if not self._firebase_id_token:
+            raise OwletAuthError("Failed to obtain Firebase token")
         return self._firebase_id_token
 
     # ── Ayla Auth ─────────────────────────────────────────────────────
@@ -205,7 +206,8 @@ class OwletApi:
         else:
             await self._ayla_sign_in()
 
-        assert self._ayla_access_token
+        if not self._ayla_access_token:
+            raise OwletAuthError("Failed to obtain Ayla access token")
         return self._ayla_access_token
 
     async def _ayla_refresh_auth(self) -> None:

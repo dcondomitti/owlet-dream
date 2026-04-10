@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 import logging
 from typing import Any
 
+import aiohttp
+
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 import homeassistant.util.dt as dt_util
@@ -113,7 +115,7 @@ class OwletDeviceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Fetch real-time vitals from Ayla."""
         try:
             vitals = await self.api.get_real_time_vitals(self.dsn)
-        except OwletAuthError as err:
+        except OwletAuthError:
             _LOGGER.warning("Auth expired for %s, re-authenticating", self.dsn)
             try:
                 await self.api.authenticate()
@@ -122,9 +124,19 @@ class OwletDeviceCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 raise UpdateFailed(f"Auth recovery failed for {self.dsn}") from inner
         except OwletApiError as err:
             raise UpdateFailed(f"Error fetching vitals for {self.dsn}: {err}") from err
+        except (aiohttp.ClientError, TimeoutError) as err:
+            raise UpdateFailed(f"Connection error for {self.dsn}: {err}") from err
 
         if vitals is None:
             raise UpdateFailed(f"No vitals data available for {self.dsn}")
+
+        _LOGGER.debug(
+            "Vitals update for %s: hr=%s ox=%s ss=%s",
+            self.dsn,
+            vitals.get("hr"),
+            vitals.get("ox"),
+            vitals.get("ss"),
+        )
 
         # Update derived state tracking
         self._track_state(vitals)
